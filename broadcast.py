@@ -32,7 +32,6 @@ def main():
 
     api2 = InstagramAPI(BROADCAST_USERNAME, BROADCAST_PASSWORD, debug=False)
     api2.login()
-    api2.USER_AGENT = 'Instagram 39.0.0.19.93 Android'
 
     # # With this there are now two process loops.  The first is to run the broadcaster
     # # and the second is to look for any DM commands coming in from the admin account
@@ -42,6 +41,17 @@ def main():
     # Thread(target = runBroadcast,args=[]).start()
     last_admin_command_thread_ID = [] # The first DM from the admin is not usable
     broadcast_id = []
+    MEDIA_FOLDER = './Media/RickAndMorty/S01E01.mkv'
+    # api2.createBroadcast()
+    # print (api2.LastJson)
+    # broadcast_id = api2.LastJson['broadcast_id']
+    # upload_url = api2.LastJson['upload_url']
+    # api2.startBroadcast(broadcast_id, sendNotification=False)
+    # ffmpeg_cmd = "ffmpeg -rtbufsize 256M -re -i '{file}' -vf 'transpose=1' -acodec libmp3lame -ar 44100 -b:a 256k -pix_fmt yuv420p -profile:v baseline -s 720x1280 -bufsize 6000k -vb 400k -maxrate 1500k -deinterlace -vcodec libx264 -preset veryfast -g 30 -r 30 -f flv '{stream_url}'".format(
+    #     file=MEDIA_FOLDER,
+    #     stream_url=upload_url.replace(':443', ':80', ).replace('rtmps://', 'rtmp://'),
+    # )
+    # pro = subprocess.Popen(ffmpeg_cmd, stdout=subprocess.PIPE,shell=True, preexec_fn=os.setsid)
 
     while True:
         # Wait 5 seconds between checking for admin messages
@@ -60,17 +70,19 @@ def main():
                     last_admin_command_thread_ID = item_ID
                     # If there is a new message from kapastor
                     print ('NEW COMMAND FOUND...' + latest_message)
-                    if latest_message in ['!start']:
-                        MEDIA_FOLDER = './Media/TheSimpsons/S01E01.avi'
+                    latest_message = latest_message.split(' ')
+                    if latest_message[0] in ['!start']:
+                        MEDIA_FOLDER = latest_message[1]
                         api2.createBroadcast()
+                        print (api2.LastJson)
                         broadcast_id = api2.LastJson['broadcast_id']
                         upload_url = api2.LastJson['upload_url']
                         api2.startBroadcast(broadcast_id, sendNotification=False)
                         ffmpeg_cmd = "ffmpeg -rtbufsize 256M -re -i '{file}' -vf 'transpose=1' -acodec libmp3lame -ar 44100 -b:a 256k -pix_fmt yuv420p -profile:v baseline -s 720x1280 -bufsize 6000k -vb 400k -maxrate 1500k -deinterlace -vcodec libx264 -preset veryfast -g 30 -r 30 -f flv '{stream_url}'".format(
-                            file=FILE_PATH,
+                            file=MEDIA_FOLDER,
                             stream_url=upload_url.replace(':443', ':80', ).replace('rtmps://', 'rtmp://'),
                         )
-                        pro = subprocess.Popen(ffmpeg_cmd, stdout=subprocess.PIPE,hell=True, preexec_fn=os.setsid)
+                        pro = subprocess.Popen(ffmpeg_cmd, stdout=subprocess.PIPE,shell=True, preexec_fn=os.setsid)
                     elif latest_message in ['!stop']:
                          if broadcast_id:
                              os.killpg(os.getpgid(pro.pid), signal.SIGTERM)
