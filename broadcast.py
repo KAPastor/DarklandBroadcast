@@ -27,7 +27,7 @@ def main():
     api = InstagramAPI(BROADCAST_USERNAME, BROADCAST_PASSWORD, debug=False)
     api.login()
     api.USER_AGENT = 'Instagram 39.0.0.19.93 Android'
-
+    api.direct_message('Darkland Broadcasting System Online...',ADMIN_ID)
     # With this there are now two process loops.  The first is to run the broadcaster
     # and the second is to look for any DM commands coming in from the admin account
     # We will run these two methods on diffrent threads
