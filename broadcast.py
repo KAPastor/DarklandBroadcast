@@ -12,13 +12,13 @@ from InstagramAPI import InstagramAPI
 import os
 import threading
 from threading import Thread
+import signal
 
 # Shared instance of the API that should be modified by the threads
-api = []
-
 # Main entry location for the script to run
 def main():
-    global api
+
+
     # To start with we will load the admin user name and passwords
     [ADMIN_USERNAME,ADMIN_ID] = getAdminCredentials('./admin.txt')
     [BROADCAST_USERNAME,BROADCAST_PASSWORD] = getBroadcasterCredentials('./login.txt')
@@ -28,45 +28,96 @@ def main():
     api.login()
     api.USER_AGENT = 'Instagram 39.0.0.19.93 Android'
     api.direct_message('Darkland Broadcasting System Online...',ADMIN_ID)
-    # With this there are now two process loops.  The first is to run the broadcaster
-    # and the second is to look for any DM commands coming in from the admin account
-    # We will run these two methods on diffrent threads
-    Thread(target = pollAdminCommands,args=[]).start()
-    # Initial command will always play the simpsons by default
-    Thread(target = runBroadcast,args=[]).start()
 
 
-def pollAdminCommands():
-    global api
-    print ('Starting up the admin thread')
-    # Now we can start the polling of the incoming commands
+    api2 = InstagramAPI(BROADCAST_USERNAME, BROADCAST_PASSWORD, debug=False)
+    api2.login()
+    api2.USER_AGENT = 'Instagram 39.0.0.19.93 Android'
+
+    # # With this there are now two process loops.  The first is to run the broadcaster
+    # # and the second is to look for any DM commands coming in from the admin account
+    # # We will run these two methods on diffrent threads
+    # Thread(target = pollAdminCommands,args=[BROADCAST_USERNAME,BROADCAST_PASSWORD,ADMIN_ID]).start()
+    # # Initial command will always play the simpsons by default
+    # Thread(target = runBroadcast,args=[]).start()
     last_admin_command_thread_ID = [] # The first DM from the admin is not usable
+    broadcast_id = []
+
     while True:
         # Wait 5 seconds between checking for admin messages
         time.sleep(5)
         api.getv2Inbox()
-        for i in range(0,1):
-            item_ID = api.LastJson['inbox']['threads'][0]['items'][0]['item_id']
-            print (item_ID)
-            command_str = api.LastJson['inbox']['threads'][0]['items'][0]['text']
-            latest_DM_username_pk = api.LastJson['inbox']['threads'][0]['users'][0]['pk']
-            latest_DM_username_un = api.LastJson['inbox']['threads'][0]['users'][0]['username']
-            print(command_str)
-            print (str(item_ID) + ":" +str(last_admin_command_thread_ID))
-            print(latest_DM_username_un)
+        item_ID = api.LastJson['inbox']['threads'][0]['items'][0]['item_id']
+        latest_message = api.LastJson['inbox']['threads'][0]['items'][0]['text']
+        latest_DM_username_pk = api.LastJson['inbox']['threads'][0]['users']
+        latest_DM_username_pk = api.LastJson['inbox']['threads'][0]['users'][0]['pk']
+        latest_DM_username_un = api.LastJson['inbox']['threads'][0]['users'][0]['username']
+        if latest_DM_username_un in ['kapastor']:
+            if not last_admin_command_thread_ID:
+                    # If the last message ID is empty
+                    last_admin_command_thread_ID = item_ID
+            elif item_ID not in last_admin_command_thread_ID:
+                    last_admin_command_thread_ID = item_ID
+                    # If there is a new message from kapastor
+                    print ('NEW COMMAND FOUND...' + latest_message)
+                    if latest_message in ['!start']:
+                        MEDIA_FOLDER = './Media/TheSimpsons/S01E01.avi'
+                        api2.createBroadcast()
+                        broadcast_id = api2.LastJson['broadcast_id']
+                        upload_url = api2.LastJson['upload_url']
+                        api2.startBroadcast(broadcast_id, sendNotification=False)
+                        ffmpeg_cmd = "ffmpeg -rtbufsize 256M -re -i '{file}' -vf 'transpose=1' -acodec libmp3lame -ar 44100 -b:a 256k -pix_fmt yuv420p -profile:v baseline -s 720x1280 -bufsize 6000k -vb 400k -maxrate 1500k -deinterlace -vcodec libx264 -preset veryfast -g 30 -r 30 -f flv '{stream_url}'".format(
+                            file=FILE_PATH,
+                            stream_url=upload_url.replace(':443', ':80', ).replace('rtmps://', 'rtmp://'),
+                        )
+                        pro = subprocess.Popen(ffmpeg_cmd, stdout=subprocess.PIPE,hell=True, preexec_fn=os.setsid)
+                    elif latest_message in ['!stop']:
+                         if broadcast_id:
+                             os.killpg(os.getpgid(pro.pid), signal.SIGTERM)
+                             api2.stopBroadcast(broadcast_id)
 
-            if latest_DM_username_un in ['kapastor']:
-                if not last_admin_command_thread_ID:
-                        # First call to the command_str
-                        last_admin_command_thread_ID = item_ID
-                elif item_ID not in last_admin_command_thread_ID:
-                        last_admin_command_thread_ID = item_ID
-                        # Now check the command string
-                        print(command_str)
+
+#                         MEDIA_FOLDER = './Media/TheSimpsons/S01'
+#                         episode_list = [];
+#                         for file in os.listdir(MEDIA_FOLDER):
+#                             if file.endswith(".avi"):
+#                                 episode_list.append(os.path.join(MEDIA_FOLDER, file))
+#
+#                         for episode in episode_list:
+#
+#                             # Start up the broadcast
+#                             FILE_PATH = episode
+#                             PUBLISH_TO_LIVE_FEED = False
+#                             SEND_NOTIFICATIONS = False
+#
+#                             api.createBroadcast()
+#                             broadcast_id = api.LastJson['broadcast_id']
+#                             upload_url = api.LastJson['upload_url']
+#
+#                             # we now start a boradcast - it will now appear in the live-feed of users
+#                             api.startBroadcast(broadcast_id, sendNotification=SEND_NOTIFICATIONS)
+#                             ffmpeg_cmd = "ffmpeg -rtbufsize 256M -re -i '{file}' -vf 'transpose=1' -acodec libmp3lame -ar 44100 -b:a 256k -pix_fmt yuv420p -profile:v baseline -s 720x1280 -bufsize 6000k -vb 400k -maxrate 1500k -deinterlace -vcodec libx264 -preset veryfast -g 30 -r 30 -f flv '{stream_url}'".format(
+#                                 file=FILE_PATH,
+#                                 stream_url=upload_url.replace(':443', ':80', ).replace('rtmps://', 'rtmp://'),
+#                             )
+#
+#                             print("Hit Ctrl+C to stop broadcast")
+#                             try:
+#                                 subprocess.call(ffmpeg_cmd, shell=True)
+#                             except KeyboardInterrupt:
+#                                 print('Stop Broadcasting')
+#
+#                             assert api.stopBroadcast(broadcast_id)
+
+
+
+def parseAdminCommand(admin_command_str,api,ADMIN_ID):
+    # This will actually update the system with the new command
+    if admin_command_str in ['!help']:
+        api.direct_message('poop',ADMIN_ID)
 
 
 def runBroadcast():
-    global api
     print ('Starting up the broadcast thread')
 
 # Returns the username and ID of the admin account for instagram commands
@@ -104,34 +155,6 @@ main()
 #
 #
 #
-# # Start the main Loop
-# while True:
-#     # Lets sleep for a second
-#     time.sleep(1)
-#     # Now we should check to see if any messages are around
-#     api.getv2Inbox()
-#     print(api.LastJson['inbox']['threads'])
-#     for i in range(0,1):
-#         print(i)
-#         item_ID = api.LastJson['inbox']['threads'][0]['items'][0]['item_id']
-#         command_str = api.LastJson['inbox']['threads'][0]['items'][0]['text']
-#         latest_DM_username_pk = api.LastJson['inbox']['threads'][0]['users'][0]['pk']
-#         latest_DM_username_un = api.LastJson['inbox']['threads'][0]['users'][0]['username']
-#         print(command_str)
-#         print (str(item_ID) + ":" +str(last_admin_command_thread_ID))
-#         print(latest_DM_username_un)
-#
-#         if latest_DM_username_un in ['kapastor']:
-#             if not last_admin_command_thread_ID:
-#                     # First call to the command_str
-#                     last_admin_command_thread_ID = item_ID
-#             elif item_ID not in last_admin_command_thread_ID:
-#                     last_admin_command_thread_ID = item_ID
-#                     # Now check the command string
-#                     print(command_str)
-#                     if command_str in ['!restart']:
-#                         #api.direct_message('This is a help outcome!',str(latest_DM_username_pk))
-#                         #api.getv2Inbox()
 #                         if broadcast_id:
 #                             api.stopBroadcast(broadcast_id)
 #
